@@ -1,0 +1,41 @@
+server:
+   port: 9890
+
+hbase:
+   phoenix:
+      url: jdbc:phoenix:192.168.209.129:2181
+      driverClassName: org.apache.phoenix.jdbc.PhoenixDriver
+
+logging:
+   config: classpath:log4j2.xml
+
+
+spring:
+   profiles:
+      active: dev
+   dataSource:
+      master:
+         driverClassName: com.mysql.jdbc.Driver
+         url: jdbc:mysql://127.0.0.1:3306/cat?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
+         username: root
+         password: 123456
+         initialSize: 20
+         minIdle: 5
+         maxActive: 30
+         maxWait: 30000
+         removeAbandoned: true
+         removeAbandonedTimeoutMillis: 300000
+         defaultAutoCommit: false
+         timeBetweenEvictionRunsMillis: 60000
+         minEvictableIdleTimeMillis: 300000
+         validationQuery: SELECT 1
+         testWhileIdle: true
+         connectionInitSql: set names utf8mb4
+kafka:
+   config:
+      producer:
+         servers: 10.50.20.172:9092
+         retries: 0
+         batchSize: 4096
+         linger: 1
+         bufferMemory: 40960

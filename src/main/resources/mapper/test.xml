@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Test">
+    <insert id="insert" parameterType="java.util.HashMap">
+        upsert into student(IDCARDNUM, "column1"."Name", "column2"."Age", "column1"."identy_num") values(#{idCardNum}, #{name}, #{age}, #{identyNum})
+    </insert>
+
+    <select id="select" resultType="java.util.HashMap">
+        select IDCARDNUM idCardNum, "column2"."Age" age, "column1"."Name" name, "column1"."identy_num" identyNum from student
+    </select>
+    <select id="selectMysql" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+        select * from alert
+    </select>
+
+</mapper>
