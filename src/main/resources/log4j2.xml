@@ -53,7 +53,7 @@
         <logger name="org" level="info" additivity="false">
             <appender-ref ref="Console"/>
         </logger>
-        <root level="debug">
+        <root level="info">
             <appender-ref ref="Console"/>
             <appender-ref ref="info"/>
             <appender-ref ref="warn"/>

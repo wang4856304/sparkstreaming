@@ -11,10 +11,12 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.VoidFunction;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.streaming.Durations;
-import org.apache.spark.streaming.api.java.JavaDStream;
-import org.apache.spark.streaming.api.java.JavaInputDStream;
-import org.apache.spark.streaming.api.java.JavaStreamingContext;
+import org.apache.spark.streaming.api.java.*;
 import org.apache.spark.streaming.kafka010.*;
 import org.hibernate.validator.constraints.SafeHtml;
 import org.slf4j.Logger;
@@ -25,6 +27,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import scala.Tuple2;
 
 import java.util.*;
 
@@ -34,7 +37,7 @@ import java.util.*;
  * @Date ${date} ${time}
  **/
 
-@SpringBootApplication
+//@SpringBootApplication
 public class SparkStreamApp implements ApplicationContextAware {
 
     private static Logger log = LoggerFactory.getLogger(SparkStreamApp.class);
@@ -44,13 +47,14 @@ public class SparkStreamApp implements ApplicationContextAware {
         //new SpringApplicationBuilder().sources(SparkStreamApp.class).web(false).run(args);
         //SparkService sparkService = new SparkServiceImpl();
         //sparkService.runSpark();
-        SpringApplication.run(SparkStreamApp.class, args);
+        //SpringApplication.run(SparkStreamApp.class, args);
         /*BaseDao baseDao = applicationContext.getBean("baseDao", BaseDao.class);
         List<Map<String, Object>> map = baseDao.select(new HashMap<>());
         System.out.println(map);*/
 
         //kafkaProducer();
         //runSparkKafka();
+        runSparkTest();
     }
 
     @Override
@@ -129,6 +133,16 @@ public class SparkStreamApp implements ApplicationContextAware {
                 //stringJavaRDD.saveAsTextFile("hdfs://10.50.20.171:9000/test.log");
             }
         });
+
+        words.foreachRDD(rdd-> {
+            rdd.foreachPartition(iter-> {
+                if (iter.hasNext()) {
+                    iter.next();
+                }
+            });
+            rdd.saveAsTextFile("/spark/data/test.log");
+            //stringJavaRDD.saveAsTextFile("hdfs://10.50.20.171:9000/test.log");
+        });
         /*JavaPairDStream<String, Integer> pairs = words.mapToPair(new PairFunction<String, String, Integer>() {
             public Tuple2<String, Integer> call(String s) throws Exception {
                 return new Tuple2<String, Integer>(s, 1);
@@ -143,5 +157,62 @@ public class SparkStreamApp implements ApplicationContextAware {
         jssc.start();
         jssc.awaitTermination();
         jssc.stop();
+    }
+
+    public static void runSparkTest() throws Exception {
+        System.setProperty("hadoop.home.dir", "D:\\hadoop-common-2.2.0-bin-master");
+        //SparkConf sparkConf = new SparkConf().setMaster("spark://10.50.20.171:7077").setAppName("spark-streaming-test");//spark服务器配置
+        SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
+        sparkConf.set("spark.streaming.stopGracefullyOnShutdown","true");//当把它停止掉的时候，它会执行完当前正在执行的任务
+        JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(10));//创建context上下文
+        JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
+        //JavaDStream<String> lines = jsc.textFileStream("D:\\test.txt");
+        lines.print();
+        SparkSession sparkSession = SparkSession.builder().getOrCreate();
+
+
+        List<StructField> fields = new ArrayList<>();
+        fields.add(DataTypes.createStructField("id", DataTypes.StringType, true));
+        fields.add(DataTypes.createStructField("name", DataTypes.StringType, true));
+        fields.add(DataTypes.createStructField("age", DataTypes.IntegerType, true));
+        StructType schema = DataTypes.createStructType(fields);
+
+        JavaDStream<Row> javaDStreamMap = lines.map(str->{
+            String[] arr = str.split(",");
+            return RowFactory.create(arr[0], arr[1], arr[2]);
+        });
+        javaDStreamMap.transform(rdd->{
+            Dataset<Row> peopleDataFrame = sparkSession.createDataFrame(rdd, schema);
+            peopleDataFrame.createGlobalTempView("people");
+            return rdd;
+        });
+        Dataset<Row> results = sparkSession.sql("SELECT * FROM people");
+        Dataset<String> namesDS = results.map(row -> {
+            String id = "id:" + row.getString(0) + " ";
+            String name = "name:" + row.getString(1) + " ";
+            String age = "age:" + row.getString(2) + " ";
+            return id + name + age;
+        }, Encoders.STRING());
+        namesDS.show();
+
+
+        System.out.println("*********************************");
+        javaDStreamMap.print();
+        JavaDStream<String> javaDStreamFlatMap = lines.flatMap(str->Arrays.asList(str.split(",")).iterator());
+        javaDStreamFlatMap.print();
+        javaDStreamFlatMap.foreachRDD(rdd->{
+            rdd.foreachPartition(iter->{
+                while (iter.hasNext()) {
+                    System.out.println("****");
+                    System.out.println(iter.next());
+                }
+            });
+        });
+
+        //JavaPairDStream<String, Integer> pair = javaDStreamMap.mapToPair(javaDStreamMap.map() -> new Tuple2<>(str, 1));
+
+        jsc.start();
+        jsc.awaitTermination();
+        jsc.stop();
     }
 }
