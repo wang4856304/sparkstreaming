@@ -1,5 +1,7 @@
 package com.wj;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.wj.dao.BaseDao;
 import com.wj.kafka.producer.KafkaProducerService;
 import com.wj.kafka.producer.impl.KafkaProducerServiceImpl;
@@ -10,6 +12,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.types.DataTypes;
@@ -29,7 +32,11 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import scala.Tuple2;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @Author wangJun
@@ -160,57 +167,113 @@ public class SparkStreamApp implements ApplicationContextAware {
     }
 
     public static void runSparkTest() throws Exception {
+        System.out.println(new JSONObject());
         System.setProperty("hadoop.home.dir", "D:\\hadoop-common-2.2.0-bin-master");
         //SparkConf sparkConf = new SparkConf().setMaster("spark://10.50.20.171:7077").setAppName("spark-streaming-test");//spark服务器配置
         SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
         sparkConf.set("spark.streaming.stopGracefullyOnShutdown","true");//当把它停止掉的时候，它会执行完当前正在执行的任务
-        JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(10));//创建context上下文
+        JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(20));//创建context上下文
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
         //JavaDStream<String> lines = jsc.textFileStream("D:\\test.txt");
-        lines.print();
-        SparkSession sparkSession = SparkSession.builder().getOrCreate();
-
-
-        List<StructField> fields = new ArrayList<>();
-        fields.add(DataTypes.createStructField("id", DataTypes.StringType, true));
-        fields.add(DataTypes.createStructField("name", DataTypes.StringType, true));
-        fields.add(DataTypes.createStructField("age", DataTypes.IntegerType, true));
-        StructType schema = DataTypes.createStructType(fields);
-
-        JavaDStream<Row> javaDStreamMap = lines.map(str->{
-            String[] arr = str.split(",");
-            return RowFactory.create(arr[0], arr[1], arr[2]);
-        });
-        javaDStreamMap.transform(rdd->{
-            Dataset<Row> peopleDataFrame = sparkSession.createDataFrame(rdd, schema);
-            peopleDataFrame.createGlobalTempView("people");
-            return rdd;
-        });
-        Dataset<Row> results = sparkSession.sql("SELECT * FROM people");
-        Dataset<String> namesDS = results.map(row -> {
-            String id = "id:" + row.getString(0) + " ";
-            String name = "name:" + row.getString(1) + " ";
-            String age = "age:" + row.getString(2) + " ";
-            return id + name + age;
-        }, Encoders.STRING());
-        namesDS.show();
 
 
         System.out.println("*********************************");
-        javaDStreamMap.print();
-        JavaDStream<String> javaDStreamFlatMap = lines.flatMap(str->Arrays.asList(str.split(",")).iterator());
-        javaDStreamFlatMap.print();
-        javaDStreamFlatMap.foreachRDD(rdd->{
-            rdd.foreachPartition(iter->{
-                while (iter.hasNext()) {
-                    System.out.println("****");
-                    System.out.println(iter.next());
+
+
+        /**flatMap**/
+        //JavaDStream<String> javaDStreamFlatMap = lines.flatMap(str->Arrays.asList(str.split(",")).iterator());
+        //javaDStreamFlatMap.print();
+
+        /**mapToPair**/
+        //JavaPairDStream<String, Integer>  javaDStreamMapToPair = javaDStreamFlatMap.mapToPair(str-> new Tuple2<>(str, 1));
+        //javaDStreamMapToPair.print();
+
+        /**reduceByKey**/
+        //JavaPairDStream<String, Integer> reduceByKey= javaDStreamMapToPair.reduceByKey((x, y)-> x + y);
+        //reduceByKey.print();
+
+
+
+
+        List<StructField> fields = new ArrayList<>();
+        fields.add(DataTypes.createStructField("name", DataTypes.StringType, true));
+        fields.add(DataTypes.createStructField("sex", DataTypes.StringType, true));
+        fields.add(DataTypes.createStructField("age", DataTypes.IntegerType, true));
+        StructType schema = DataTypes.createStructType(fields);
+
+        JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(str->{
+            List<Row> rowList = new ArrayList<>();
+            if (str == null || str.length() == 0) {
+                return rowList.iterator();
+            }
+            System.out.println(str);
+            JSONArray jsonArray = JSONArray.parseArray(str);
+            if (jsonArray != null && jsonArray.size() > 0) {
+                for (int i = 0; i < jsonArray.size(); i++) {
+                    JSONObject jsonObject = jsonArray.getJSONObject(i);
+                    String name = jsonObject.getString("name");
+                    String sex = jsonObject.getString("sex");
+                    int age = jsonObject.getInteger("age");
+                    Row row = RowFactory.create(name, sex, age);
+                    rowList.add(row);
                 }
+            }
+            return rowList.iterator();
+        });
+
+        //javaDStreamFlatMap.filter(str->!str.equals("1"));
+        javaDStreamFlatMap.foreachRDD(rdd->{
+            rdd.foreachPartition(eachPartition->{
+                //SparkSession sparkSession = SparkSession.builder().config(sparkConf).getOrCreate();// executed at the driver
+                //List<Row> rowList = new ArrayList<>();
+
+
+                //database info
+                String url = "jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false";// executed at the worker
+                Properties connectionProperties = new Properties();
+                connectionProperties.put("user","root");
+                connectionProperties.put("password","root");
+                connectionProperties.put("driver","com.mysql.jdbc.Driver");
+
+
+                //peopleDataFrame.write().mode("append").jdbc(url, "person", connectionProperties);
+                eachPartition.forEachRemaining(row -> {
+                    //rowList.add(row);
+
+                    String sql = "insert into person(name, sex, age) values(" + "'" + row.getString(0) + "',"
+                            + "'" + row.getString(1) + "'," + row.getInt(2) + ")";
+                    Statement statement;
+                    Connection conn = null;
+                    try {
+                        conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
+                                "root",
+                                "root");
+                        statement = conn.createStatement();
+                        statement.executeUpdate(sql);
+                    }
+                    catch (Exception e) {
+                        throw new RuntimeException("error");
+                    }
+                    finally {
+                        try {
+                           if (conn != null) {
+                               conn.close();
+                           }
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+                //Dataset<Row> peopleDataFrame = sparkSession.createDataFrame(rowList, schema);
+                //peopleDataFrame.write().mode("append").jdbc(url, "person", connectionProperties);
             });
         });
 
         //JavaPairDStream<String, Integer> pair = javaDStreamMap.mapToPair(javaDStreamMap.map() -> new Tuple2<>(str, 1));
 
+        lines.print();
+        javaDStreamFlatMap.print();
         jsc.start();
         jsc.awaitTermination();
         jsc.stop();
