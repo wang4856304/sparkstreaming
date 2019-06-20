@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
  * @Date ${date} ${time}
  **/
 
-@Service
+//@Service
 public class KafkaProducerServiceImpl implements KafkaProducerService {
 
     private static Logger log = LoggerFactory.getLogger(KafkaProducerServiceImpl.class);

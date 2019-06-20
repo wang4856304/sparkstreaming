@@ -10,10 +10,8 @@ import com.wj.spark.impl.SparkServiceImpl;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.function.FlatMapFunction;
-import org.apache.spark.api.java.function.Function;
-import org.apache.spark.api.java.function.PairFunction;
-import org.apache.spark.api.java.function.VoidFunction;
+import org.apache.spark.api.java.Optional;
+import org.apache.spark.api.java.function.*;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
@@ -21,12 +19,16 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.*;
 import org.apache.spark.streaming.kafka010.*;
-import org.hibernate.validator.constraints.SafeHtml;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -34,9 +36,9 @@ import scala.Tuple2;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * @Author wangJun
@@ -44,14 +46,16 @@ import java.util.stream.Collectors;
  * @Date ${date} ${time}
  **/
 
-//@SpringBootApplication
-public class SparkStreamApp implements ApplicationContextAware {
+@SpringBootApplication(exclude = {DataSourceAutoConfiguration.class, KafkaAutoConfiguration.class})
+public class SparkStreamApp implements ApplicationRunner {
 
     private static Logger log = LoggerFactory.getLogger(SparkStreamApp.class);
-    private static ApplicationContext applicationContext;
+
+    @Autowired
+    private SparkService sparkService;
 
     public static void main(String args[]) throws Exception {
-        //new SpringApplicationBuilder().sources(SparkStreamApp.class).web(false).run(args);
+        new SpringApplicationBuilder().sources(SparkStreamApp.class).web(false).run(args);
         //SparkService sparkService = new SparkServiceImpl();
         //sparkService.runSpark();
         //SpringApplication.run(SparkStreamApp.class, args);
@@ -61,20 +65,9 @@ public class SparkStreamApp implements ApplicationContextAware {
 
         //kafkaProducer();
         //runSparkKafka();
-        runSparkTest();
     }
 
-    @Override
-    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        SparkStreamApp.applicationContext = applicationContext;
-    }
-
-    private static void kafkaProducer() {
-        KafkaProducerService kafkaProducerService =  applicationContext.getBean("kafkaProducerServiceImpl", KafkaProducerService.class);
-        kafkaProducerService.sendMessage();
-    }
-
-    public static void runSparkKafka() throws Exception {
+    /*public static void runSparkKafka() throws Exception {
         System.setProperty("hadoop.home.dir", "E:\\hadoop-common-2.2.0-bin-master");
         SparkConf sparkConf = new SparkConf().setMaster("spark://10.50.20.171:7077").setAppName("spark-streaming-test");//spark服务器配置
         //SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
@@ -108,11 +101,11 @@ public class SparkStreamApp implements ApplicationContextAware {
                 ConsumerStrategies.Subscribe(topicsSet, kafkaParams)
         );
 
-        /*JavaDStream<String> words = lines.flatMap(new FlatMapFunction<ConsumerRecord<Object,Object>, String>() {
+        *//*JavaDStream<String> words = lines.flatMap(new FlatMapFunction<ConsumerRecord<Object,Object>, String>() {
             public Iterator<String> call(ConsumerRecord<Object,Object> s) throws Exception {
                 return Arrays.asList(s.value().toString().split(",")).iterator();
             }
-        });*/
+        });*//*
         JavaDStream<String> wordX = lines.map(new Function<ConsumerRecord<Object, Object>, String>() {
             @Override
             public String call(ConsumerRecord<Object, Object> objectObjectConsumerRecord) throws Exception {
@@ -150,7 +143,7 @@ public class SparkStreamApp implements ApplicationContextAware {
             rdd.saveAsTextFile("/spark/data/test.log");
             //stringJavaRDD.saveAsTextFile("hdfs://10.50.20.171:9000/test.log");
         });
-        /*JavaPairDStream<String, Integer> pairs = words.mapToPair(new PairFunction<String, String, Integer>() {
+        *//*JavaPairDStream<String, Integer> pairs = words.mapToPair(new PairFunction<String, String, Integer>() {
             public Tuple2<String, Integer> call(String s) throws Exception {
                 return new Tuple2<String, Integer>(s, 1);
             }
@@ -159,7 +152,7 @@ public class SparkStreamApp implements ApplicationContextAware {
             public Integer call(Integer a, Integer b) throws Exception {
                 return a + b;
             }
-        });*/
+        });*//*
         //wordCount.print();
         jssc.start();
         jssc.awaitTermination();
@@ -173,6 +166,7 @@ public class SparkStreamApp implements ApplicationContextAware {
         SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
         sparkConf.set("spark.streaming.stopGracefullyOnShutdown","true");//当把它停止掉的时候，它会执行完当前正在执行的任务
         JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(20));//创建context上下文
+        jsc.checkpoint("/spark/checkponit");//spark 持久化容错目录设置
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
         //JavaDStream<String> lines = jsc.textFileStream("D:\\test.txt");
 
@@ -180,15 +174,15 @@ public class SparkStreamApp implements ApplicationContextAware {
         System.out.println("*********************************");
 
 
-        /**flatMap**/
+        *//**flatMap**//*
         //JavaDStream<String> javaDStreamFlatMap = lines.flatMap(str->Arrays.asList(str.split(",")).iterator());
         //javaDStreamFlatMap.print();
 
-        /**mapToPair**/
+        *//**mapToPair**//*
         //JavaPairDStream<String, Integer>  javaDStreamMapToPair = javaDStreamFlatMap.mapToPair(str-> new Tuple2<>(str, 1));
         //javaDStreamMapToPair.print();
 
-        /**reduceByKey**/
+        *//**reduceByKey**//*
         //JavaPairDStream<String, Integer> reduceByKey= javaDStreamMapToPair.reduceByKey((x, y)-> x + y);
         //reduceByKey.print();
 
@@ -206,7 +200,6 @@ public class SparkStreamApp implements ApplicationContextAware {
             if (str == null || str.length() == 0) {
                 return rowList.iterator();
             }
-            System.out.println(str);
             JSONArray jsonArray = JSONArray.parseArray(str);
             if (jsonArray != null && jsonArray.size() > 0) {
                 for (int i = 0; i < jsonArray.size(); i++) {
@@ -220,6 +213,55 @@ public class SparkStreamApp implements ApplicationContextAware {
             }
             return rowList.iterator();
         });
+
+        JavaDStream<String> namesStreamFlatMap = lines.flatMap(str->{
+            List<String> names = new ArrayList<>();
+            JSONArray jsonArray = JSONArray.parseArray(str);
+            if (jsonArray != null && jsonArray.size() > 0) {
+                for (int i = 0; i < jsonArray.size(); i++) {
+                    JSONObject jsonObject = jsonArray.getJSONObject(i);
+                    String name = jsonObject.getString("name");
+                    names.add(name);
+                }
+            }
+            return names.iterator();
+        });
+
+        JavaPairDStream<String, Integer> namePairStream = namesStreamFlatMap.mapToPair(str->new Tuple2<>(str, 1));
+        JavaPairDStream<String, Integer> nameUpdateStateByKeyPairStream = namePairStream.updateStateByKey((values, state)->{
+            Integer newValue = 0;
+            //判断state是否存在，如果不存在，说明是一个key第一次出现
+            //如果存在，说明这个key之前已经统计过全局的次数了
+            if (state.isPresent()) {
+                newValue = state.get();
+            }
+
+            //将本次新出现的值，都累加到newValue上去，就是一个key目前的全局的统计
+            for (Integer v: values) {
+                newValue += v;
+            }
+            return Optional.of(newValue);
+        });
+
+        nameUpdateStateByKeyPairStream.print();
+
+        nameUpdateStateByKeyPairStream.cache();//缓存到内存
+        nameUpdateStateByKeyPairStream.checkpoint(Durations.seconds(20));//持久化到文件系统
+
+        JavaDStream<Row> nameCount = nameUpdateStateByKeyPairStream.flatMap((tuple2)->{
+            List<Row> rowList = new ArrayList<>();
+
+            Row row = RowFactory.create(tuple2._1, tuple2._2);
+            rowList.add(row);
+            return rowList.iterator();
+        });
+
+        nameCount.foreachRDD(rdd->{
+            rdd.foreachPartition(eachPartition->{
+                eachPartition.forEachRemaining(row -> updateNameCount(row));
+            });
+        });
+
 
         //javaDStreamFlatMap.filter(str->!str.equals("1"));
         javaDStreamFlatMap.foreachRDD(rdd->{
@@ -277,5 +319,47 @@ public class SparkStreamApp implements ApplicationContextAware {
         jsc.start();
         jsc.awaitTermination();
         jsc.stop();
+    }
+
+    public static void updateNameCount(Row row) {
+        String selectSql = "select name from person_count where name=" + "'" + row.getString(0) + "'";
+        String addSql = "insert into person_count(name, count) values(" + "'" + row.getString(0) + "',"
+                 + row.getInt(1) + ")";
+        String updateSql = "update person_count set count=" + row.getInt(1) + " where name="+ "'" + row.getString(0) + "'";
+
+        Statement statement;
+        Connection conn = null;
+        try {
+            conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
+                    "root",
+                    "root");
+            statement = conn.createStatement();
+            ResultSet resultSet = statement.executeQuery(selectSql);
+            if (resultSet == null|| !resultSet.next()) {
+                statement.executeUpdate(addSql);
+            }
+            else {
+                statement.executeUpdate(updateSql);
+            }
+
+        }
+        catch (Exception e) {
+            throw new RuntimeException("error");
+        }
+        finally {
+            try {
+                if (conn != null) {
+                    conn.close();
+                }
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }*/
+
+    @Override
+    public void run(ApplicationArguments applicationArguments) throws Exception {
+        sparkService.runSpark();
     }
 }

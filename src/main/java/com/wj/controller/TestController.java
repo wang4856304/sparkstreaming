@@ -27,13 +27,13 @@ public class TestController {
     //@Autowired
     //private BaseDao baseDao;
 
-    @Autowired
+    //@Autowired
     private DataSource hBasePhoenixDatasource;
 
-    @Autowired
+    //@Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
+    //@Autowired
     private KafkaProducerService kafkaProducerService;
 
     @RequestMapping("/test")

@@ -22,7 +22,7 @@ import java.util.Map;
 
 @Data
 @NoArgsConstructor
-@Configuration
+//@Configuration
 @ConfigurationProperties(prefix = "kafka.config.producer")
 public class KafkaProducerConfig {
 

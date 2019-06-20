@@ -20,7 +20,7 @@ import javax.sql.DataSource;
  * @Date ${date} ${time}
  **/
 
-@Configuration
+//@Configuration
 @ConfigurationProperties(prefix = "hbase.phoenix")
 @EnableTransactionManagement
 public class HBasePhoenixDataSourceConfig {
