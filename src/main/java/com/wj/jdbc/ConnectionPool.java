@@ -2,9 +2,6 @@ package com.wj.jdbc;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.*;
 
 /**

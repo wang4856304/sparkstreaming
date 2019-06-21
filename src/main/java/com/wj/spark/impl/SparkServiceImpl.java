@@ -52,12 +52,17 @@ public class SparkServiceImpl implements SparkService {
         jsc.checkpoint("/spark/checkponit1");//spark 持久化容错目录设置
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
 
+        //driver服务重启时，恢复原有流程或数据
+        JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate("/spark/checkponit1", ()->jsc);
+
         JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(str->exchangePersonInfo(str));
 
         javaDStreamFlatMap.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
+                ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
+                        "root", "root", "", 10);
                 eachPartition.forEachRemaining(row -> {
-                    insertPerson(row);
+                    insertPerson(row, connectionPool);
                 });
             });
         });
@@ -92,7 +97,7 @@ public class SparkServiceImpl implements SparkService {
         });
 
         nameUpdateStateByKeyPairStream.cache();//缓存到内存
-        nameUpdateStateByKeyPairStream.checkpoint(Durations.seconds(60));//持久化到文件系统
+        nameUpdateStateByKeyPairStream.checkpoint(Durations.seconds(20));//持久化到文件系统
 
         JavaDStream<Row> nameCount = nameUpdateStateByKeyPairStream.flatMap((tuple2)->{
             List<Row> rowList = new ArrayList<>();
@@ -104,13 +109,15 @@ public class SparkServiceImpl implements SparkService {
 
         nameCount.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
-                eachPartition.forEachRemaining(row -> updateNameCount(row));
+                ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
+                        "root", "root", "", 10);
+                eachPartition.forEachRemaining(row -> updateNameCount(row, connectionPool));
             });
         });
 
         lines.print();
-        jsc.start();
-        jsc.awaitTermination();
+        backupJsc.start();
+        backupJsc.awaitTermination();
     }
 
     private Iterator<Row> exchangePersonInfo(String var1) {
@@ -132,12 +139,12 @@ public class SparkServiceImpl implements SparkService {
         return rowList.iterator();
     }
 
-    private void insertPerson(Row row) {
+    private void insertPerson(Row row, ConnectionPool connectionPool) {
         String selectSql = "select name from person where name=" + "'" + row.getString(0) + "'";
         String addSql = "insert into person(name, sex, age) values(" + "'" + row.getString(0) + "',"
                 + "'" + row.getString(1) + "'," + row.getInt(2) + ")";
-        ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
-                "root", "root", "", 10);
+        /*ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
+                "root", "root", "", 10);*/
         Connection connection = connectionPool.getConnection();
         try {
             Statement statement = connection.createStatement();
@@ -154,14 +161,14 @@ public class SparkServiceImpl implements SparkService {
         }
     }
 
-    public static void updateNameCount(Row row) {
+    public void updateNameCount(Row row, ConnectionPool connectionPool) {
         String selectSql = "select name from person_count where name=" + "'" + row.getString(0) + "'";
         String addSql = "insert into person_count(name, count) values(" + "'" + row.getString(0) + "',"
                 + row.getInt(1) + ")";
         String updateSql = "update person_count set count=" + row.getInt(1) + " where name="+ "'" + row.getString(0) + "'";
 
-        ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
-                "root", "root", "", 10);
+
+
         Connection connection = connectionPool.getConnection();
         try {
             Statement statement = connection.createStatement();
