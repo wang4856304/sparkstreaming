@@ -60,7 +60,7 @@ public class SparkServiceImpl implements SparkService {
         //driver服务重启时，恢复原有流程或数据
         JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate(checkPointDir, ()->jsc);
 
-        JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(str->exchangePersonInfo(str));
+        JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(this::exchangePersonInfo);
 
         javaDStreamFlatMap.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
@@ -85,6 +85,8 @@ public class SparkServiceImpl implements SparkService {
         });
 
         JavaPairDStream<String, Integer> namePairStream = namesStreamFlatMap.mapToPair(str->new Tuple2<>(str, 1));
+        //每隔10秒计算前30秒的数据
+        JavaPairDStream<String, Integer> nameReduceByKeyAndWindowPairStream = namePairStream.reduceByKeyAndWindow((x, y)->x+y, Durations.seconds(30), Durations.seconds(10));
         JavaPairDStream<String, Integer> nameUpdateStateByKeyPairStream = namePairStream.updateStateByKey((values, state)->{
             Integer newValue = 0;
             //判断state是否存在，如果不存在，说明是一个key第一次出现
