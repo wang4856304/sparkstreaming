@@ -4,7 +4,11 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.wj.jdbc.ConnectionPool;
 import com.wj.kafka.producer.impl.KafkaProducerServiceImpl;
+import com.wj.queueenum.QueueEnum;
+import com.wj.rabbitmq.SenderService;
+import com.wj.rabbitmq.impl.SenderServiceImpl;
 import com.wj.spark.SparkService;
+import com.wj.utils.SpringContextUtil;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.spark.SparkConf;
@@ -41,6 +45,7 @@ import java.util.*;
 public class SparkServiceImpl implements SparkService {
 
     private static Logger log = LoggerFactory.getLogger(KafkaProducerServiceImpl.class);
+    private static final String checkPointDir = "/spark/checkponit";
 
     @Override
     public void runSpark() throws Exception {
@@ -49,11 +54,11 @@ public class SparkServiceImpl implements SparkService {
         SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
         sparkConf.set("spark.executor.memory", "512m");
         JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(10));//创建context上下文
-        jsc.checkpoint("/spark/checkponit1");//spark 持久化容错目录设置
+        jsc.checkpoint(checkPointDir);//spark 持久化容错目录设置
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
 
         //driver服务重启时，恢复原有流程或数据
-        JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate("/spark/checkponit1", ()->jsc);
+        JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate(checkPointDir, ()->jsc);
 
         JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(str->exchangePersonInfo(str));
 
@@ -101,6 +106,12 @@ public class SparkServiceImpl implements SparkService {
 
         JavaDStream<Row> nameCount = nameUpdateStateByKeyPairStream.flatMap((tuple2)->{
             List<Row> rowList = new ArrayList<>();
+            //数据入mq
+            SenderService senderService = SpringContextUtil.getBean("senderServiceImpl", SenderService.class);
+            JSONObject json = new JSONObject();
+            json.put("name", tuple2._1);
+            json.put("count", tuple2._2);
+            senderService.send(QueueEnum.NAME_COUNT.getQueueName(), json.toJSONString());
 
             Row row = RowFactory.create(tuple2._1, tuple2._2);
             rowList.add(row);
@@ -143,8 +154,6 @@ public class SparkServiceImpl implements SparkService {
         String selectSql = "select name from person where name=" + "'" + row.getString(0) + "'";
         String addSql = "insert into person(name, sex, age) values(" + "'" + row.getString(0) + "',"
                 + "'" + row.getString(1) + "'," + row.getInt(2) + ")";
-        /*ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
-                "root", "root", "", 10);*/
         Connection connection = connectionPool.getConnection();
         try {
             Statement statement = connection.createStatement();
@@ -166,9 +175,6 @@ public class SparkServiceImpl implements SparkService {
         String addSql = "insert into person_count(name, count) values(" + "'" + row.getString(0) + "',"
                 + row.getInt(1) + ")";
         String updateSql = "update person_count set count=" + row.getInt(1) + " where name="+ "'" + row.getString(0) + "'";
-
-
-
         Connection connection = connectionPool.getConnection();
         try {
             Statement statement = connection.createStatement();

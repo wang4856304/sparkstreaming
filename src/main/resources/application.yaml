@@ -31,6 +31,13 @@ spring:
          validationQuery: SELECT 1
          testWhileIdle: true
          connectionInitSql: set names utf8mb4
+   rabbitmq:
+      host: 127.0.0.1
+      port: 5672
+      username: admin
+      password: admin
+      publisher-confirms: true
+      virtual-host: /
 kafka:
    config:
       producer:
