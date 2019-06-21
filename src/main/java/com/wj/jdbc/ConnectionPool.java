@@ -1,5 +1,11 @@
 package com.wj.jdbc;
 
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.concurrent.*;
@@ -11,11 +17,16 @@ import java.util.concurrent.*;
  * @description: TODO
  * @date 2019/6/20 15:06
  */
+
+@Component
+@ConfigurationProperties(prefix = "spring.spark.dataSource")
+@Data
+@NoArgsConstructor
 public class ConnectionPool {
 
     private int defaultPoolSize = 10;
     private String jdbcUrl;
-    private String userName;
+    private String username;
     private String password;
     private String driverName;
     private int maxPoolSize = 100;
@@ -23,22 +34,23 @@ public class ConnectionPool {
 
     private LinkedBlockingQueue<Connection> connectionList = new LinkedBlockingQueue<>();
 
-    public ConnectionPool(String jdbcUrl, String userName, String password, String driverName, int defaultPoolSize) {
+    public ConnectionPool(String jdbcUrl, String username, String password, String driverName, int defaultPoolSize) {
         this.defaultPoolSize = defaultPoolSize;
         this.jdbcUrl = jdbcUrl;
-        this.userName = userName;
+        this.username = username;
         this.password = password;
         this.driverName = driverName;
         init();
     }
 
+    @PostConstruct
     private void init() {
         if (defaultPoolSize > maxPoolSize) {
             throw new  RuntimeException("defaultPoolSize is greater than maxPoolSize");
         }
         try {
             for (int i = 0; i < defaultPoolSize; i++) {
-                Connection connection = DriverManager.getConnection(jdbcUrl, userName, password);
+                Connection connection = DriverManager.getConnection(jdbcUrl, username, password);
                 connectionList.add(connection);
             }
         }

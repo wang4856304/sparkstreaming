@@ -38,6 +38,12 @@ spring:
       password: admin
       publisher-confirms: true
       virtual-host: /
+   spark:
+      dataSource:
+         driverName: com.mysql.jdbc.Driver
+         jdbcUrl: jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false
+         username: root
+         password: root
 kafka:
    config:
       producer:

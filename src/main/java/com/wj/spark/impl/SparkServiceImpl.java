@@ -64,8 +64,7 @@ public class SparkServiceImpl implements SparkService {
 
         javaDStreamFlatMap.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
-                ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
-                        "root", "root", "", 10);
+                ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
                 eachPartition.forEachRemaining(row -> {
                     insertPerson(row, connectionPool);
                 });
@@ -120,8 +119,7 @@ public class SparkServiceImpl implements SparkService {
 
         nameCount.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
-                ConnectionPool connectionPool = new ConnectionPool("jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false",
-                        "root", "root", "", 10);
+                ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
                 eachPartition.forEachRemaining(row -> updateNameCount(row, connectionPool));
             });
         });
