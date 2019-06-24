@@ -7,6 +7,7 @@ import com.wj.kafka.producer.KafkaProducerService;
 import com.wj.kafka.producer.impl.KafkaProducerServiceImpl;
 import com.wj.spark.SparkService;
 import com.wj.spark.impl.SparkServiceImpl;
+import com.zaxxer.hikari.HikariDataSource;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
@@ -28,12 +29,16 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceBuilder;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.annotation.Bean;
 import scala.Tuple2;
 
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -65,6 +70,21 @@ public class SparkStreamApp implements ApplicationRunner {
 
         //kafkaProducer();
         //runSparkKafka();
+    }
+
+    @Bean
+    public DataSource getDataSource() {
+        HikariDataSource hikariDataSource = new HikariDataSource();
+        hikariDataSource.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/gateway?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false");
+        hikariDataSource.setUsername("root");
+        hikariDataSource.setPassword("root");
+        hikariDataSource.setDriverClassName("com.mysql.jdbc.Driver");
+        return hikariDataSource;
+    }
+
+    @Override
+    public void run(ApplicationArguments applicationArguments) throws Exception {
+        sparkService.runSpark();
     }
 
     /*public static void runSparkKafka() throws Exception {
@@ -358,8 +378,5 @@ public class SparkStreamApp implements ApplicationRunner {
         }
     }*/
 
-    @Override
-    public void run(ApplicationArguments applicationArguments) throws Exception {
-        sparkService.runSpark();
-    }
+
 }

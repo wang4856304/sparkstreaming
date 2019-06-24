@@ -9,6 +9,7 @@ import com.wj.rabbitmq.SenderService;
 import com.wj.rabbitmq.impl.SenderServiceImpl;
 import com.wj.spark.SparkService;
 import com.wj.utils.SpringContextUtil;
+import com.zaxxer.hikari.HikariDataSource;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.spark.SparkConf;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 import scala.Tuple2;
 
 import javax.annotation.PostConstruct;
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -47,13 +49,14 @@ public class SparkServiceImpl implements SparkService {
     private static Logger log = LoggerFactory.getLogger(KafkaProducerServiceImpl.class);
     private static final String checkPointDir = "/spark/checkponit";
 
+
     @Override
     public void runSpark() throws Exception {
         System.setProperty("hadoop.home.dir", "D:\\hadoop-common-2.2.0-bin-master");
         //SparkConf sparkConf = new SparkConf().setMaster("spark://master:7077").setAppName("spark-streaming-test");//spark服务器配置
         SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
         sparkConf.set("spark.executor.memory", "512m");
-        JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(10));//创建context上下文
+        JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(20));//创建context上下文
         jsc.checkpoint(checkPointDir);//spark 持久化容错目录设置
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
 
@@ -62,12 +65,13 @@ public class SparkServiceImpl implements SparkService {
 
         JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(this::exchangePersonInfo);
 
+
         javaDStreamFlatMap.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
-                ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
-                eachPartition.forEachRemaining(row -> {
-                    insertPerson(row, connectionPool);
-                });
+                //ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
+                DataSource dataSource = SpringContextUtil.getBean(DataSource.class);
+                Connection connection = dataSource.getConnection();
+                eachPartition.forEachRemaining(row -> insertPerson(row, connection));
             });
         });
 
@@ -86,7 +90,7 @@ public class SparkServiceImpl implements SparkService {
 
         JavaPairDStream<String, Integer> namePairStream = namesStreamFlatMap.mapToPair(str->new Tuple2<>(str, 1));
         //每隔10秒计算前30秒的数据
-        JavaPairDStream<String, Integer> nameReduceByKeyAndWindowPairStream = namePairStream.reduceByKeyAndWindow((x, y)->x+y, Durations.seconds(30), Durations.seconds(10));
+        JavaPairDStream<String, Integer> nameReduceByKeyAndWindowPairStream = namePairStream.reduceByKeyAndWindow((x, y)->x+y, Durations.seconds(60), Durations.seconds(20));
         JavaPairDStream<String, Integer> nameUpdateStateByKeyPairStream = namePairStream.updateStateByKey((values, state)->{
             Integer newValue = 0;
             //判断state是否存在，如果不存在，说明是一个key第一次出现
@@ -121,8 +125,10 @@ public class SparkServiceImpl implements SparkService {
 
         nameCount.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
-                ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
-                eachPartition.forEachRemaining(row -> updateNameCount(row, connectionPool));
+                //ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
+                DataSource dataSource = SpringContextUtil.getBean(DataSource.class);
+                Connection connection = dataSource.getConnection();
+                eachPartition.forEachRemaining(row -> updateNameCount(row, connection));
             });
         });
 
@@ -150,11 +156,10 @@ public class SparkServiceImpl implements SparkService {
         return rowList.iterator();
     }
 
-    private void insertPerson(Row row, ConnectionPool connectionPool) {
+    private void insertPerson(Row row, Connection connection) {
         String selectSql = "select name from person where name=" + "'" + row.getString(0) + "'";
         String addSql = "insert into person(name, sex, age) values(" + "'" + row.getString(0) + "',"
                 + "'" + row.getString(1) + "'," + row.getInt(2) + ")";
-        Connection connection = connectionPool.getConnection();
         try {
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery(selectSql);
@@ -165,17 +170,13 @@ public class SparkServiceImpl implements SparkService {
         catch (Exception e) {
             e.printStackTrace();
         }
-        finally {
-            connectionPool.returnConnection(connection);
-        }
     }
 
-    public void updateNameCount(Row row, ConnectionPool connectionPool) {
+    public void updateNameCount(Row row, Connection connection) {
         String selectSql = "select name from person_count where name=" + "'" + row.getString(0) + "'";
         String addSql = "insert into person_count(name, count) values(" + "'" + row.getString(0) + "',"
                 + row.getInt(1) + ")";
         String updateSql = "update person_count set count=" + row.getInt(1) + " where name="+ "'" + row.getString(0) + "'";
-        Connection connection = connectionPool.getConnection();
         try {
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery(selectSql);
@@ -188,9 +189,6 @@ public class SparkServiceImpl implements SparkService {
         }
         catch (Exception e) {
             e.printStackTrace();
-        }
-        finally {
-            connectionPool.returnConnection(connection);
         }
     }
 

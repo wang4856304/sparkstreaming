@@ -14,23 +14,25 @@ spring:
    profiles:
       active: dev
    dataSource:
-      master:
-         driverClassName: com.mysql.jdbc.Driver
-         url: jdbc:mysql://127.0.0.1:3306/cat?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
+      hikari:
+         driver-class-name: com.mysql.jdbc.Driver
          username: root
-         password: 123456
-         initialSize: 20
-         minIdle: 5
-         maxActive: 30
-         maxWait: 30000
-         removeAbandoned: true
-         removeAbandonedTimeoutMillis: 300000
-         defaultAutoCommit: false
-         timeBetweenEvictionRunsMillis: 60000
-         minEvictableIdleTimeMillis: 300000
-         validationQuery: SELECT 1
-         testWhileIdle: true
-         connectionInitSql: set names utf8mb4
+         password: root
+         jdbc-url: jdbc:mysql://127.0.0.1:3306/gateway?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
+         # 是否自动提交
+         auto-commit: true
+         # 如果在没有连接可用的情况下超过此时间，则将抛出SQLException
+         connection-timeout: 30000
+         # 控制允许连接在池中空闲的最长时间
+         idle-timeout: 600000
+         # 控制池中连接的最长生命周期。使用中的连接永远不会退役，只有当它关闭时才会被删除
+         max-lifetime: 1800000
+         # 如果您的驱动程序支持JDBC4，强烈建议不要设置此属性
+         # connection-test-query:
+         # 控制HikariCP尝试在池中维护的最小空闲连接数。建议不要设置此值，而是允许HikariCP充当固定大小的连接池。 默认值：与maximumPoolSize相同
+         # minimum-idle:
+         # 此属性控制允许池到达的最大大小，包括空闲和正在使用的连接。
+         maximum-pool-size: 10
    rabbitmq:
       host: 127.0.0.1
       port: 5672
@@ -44,6 +46,7 @@ spring:
          jdbcUrl: jdbc:mysql://localhost:3306/gateway?characterEncoding=utf8&useSSL=false
          username: root
          password: root
+
 kafka:
    config:
       producer:
