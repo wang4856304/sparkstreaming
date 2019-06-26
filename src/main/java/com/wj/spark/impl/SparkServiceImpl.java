@@ -16,8 +16,10 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.Optional;
 import org.apache.spark.api.java.function.*;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.Time;
 import org.apache.spark.streaming.api.java.*;
@@ -71,7 +73,12 @@ public class SparkServiceImpl implements SparkService {
                 //ConnectionPool connectionPool = SpringContextUtil.getBean("connectionPool", ConnectionPool.class);
                 DataSource dataSource = SpringContextUtil.getBean(DataSource.class);
                 Connection connection = dataSource.getConnection();
-                eachPartition.forEachRemaining(row -> insertPerson(row, connection));
+                List<Row> rowList = new ArrayList<>();
+                eachPartition.forEachRemaining(row -> {
+                    rowList.add(row);
+                    insertPerson(row, connection);
+                });
+                //createSparkSql(rowList);
             });
         });
 
@@ -189,6 +196,24 @@ public class SparkServiceImpl implements SparkService {
         }
         catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private void createSparkSql(List<Row> rowList) {
+        SparkSession sparkSession = SparkSession.builder().getOrCreate();
+        List<StructField> structFields=new ArrayList<>();
+        structFields.add(DataTypes.createStructField("name",DataTypes.StringType,true));
+        structFields.add(DataTypes.createStructField("sex",DataTypes.StringType,true));
+        structFields.add(DataTypes.createStructField("age",DataTypes.IntegerType,true));
+        StructType structType=DataTypes.createStructType(structFields);
+        Dataset<Row> dataset = sparkSession.createDataFrame(rowList, structType);
+        try {
+            dataset.createOrReplaceTempView("person");
+            Dataset<Row> result = sparkSession.sql("select * from person");
+            result.show();
+        }
+        catch (Exception e) {
+            throw new RuntimeException("createOrReplaceTempView error", e);
         }
     }
 

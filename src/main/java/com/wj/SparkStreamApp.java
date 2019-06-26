@@ -73,12 +73,19 @@ public class SparkStreamApp implements ApplicationRunner {
     }
 
     @Bean
-    public DataSource getDataSource() {
+    public DataSource getDataSource() throws Exception {
         HikariDataSource hikariDataSource = new HikariDataSource();
         hikariDataSource.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/gateway?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false");
         hikariDataSource.setUsername("root");
         hikariDataSource.setPassword("root");
         hikariDataSource.setDriverClassName("com.mysql.jdbc.Driver");
+        hikariDataSource.setConnectionTimeout(60000);
+        //hikariDataSource.setIdleTimeout(60000);
+        hikariDataSource.setValidationTimeout(3000);
+        //hikariDataSource.setMaxLifetime(60000);
+        hikariDataSource.setLoginTimeout(5);
+        hikariDataSource.setMaximumPoolSize(600);
+        hikariDataSource.setMinimumIdle(10);
         return hikariDataSource;
     }
 
