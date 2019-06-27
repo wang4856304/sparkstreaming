@@ -2,16 +2,11 @@ package com.wj.spark.impl;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.wj.jdbc.ConnectionPool;
 import com.wj.kafka.producer.impl.KafkaProducerServiceImpl;
 import com.wj.queueenum.QueueEnum;
 import com.wj.rabbitmq.SenderService;
-import com.wj.rabbitmq.impl.SenderServiceImpl;
-import com.wj.spark.SparkService;
 import com.wj.utils.SpringContextUtil;
-import com.zaxxer.hikari.HikariDataSource;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.Optional;
@@ -21,7 +16,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.streaming.Durations;
-import org.apache.spark.streaming.Time;
 import org.apache.spark.streaming.api.java.*;
 import org.apache.spark.streaming.kafka010.ConsumerStrategies;
 import org.apache.spark.streaming.kafka010.KafkaUtils;
@@ -31,10 +25,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import scala.Tuple2;
 
-import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.*;
@@ -46,7 +38,7 @@ import java.util.*;
  **/
 
 @Service
-public class SparkServiceImpl implements SparkService {
+public class SparkServiceImpl extends AbstractSparkService {
 
     private static Logger log = LoggerFactory.getLogger(KafkaProducerServiceImpl.class);
     private static final String checkPointDir = "/spark/checkponit";
@@ -56,17 +48,22 @@ public class SparkServiceImpl implements SparkService {
     public void runSpark() throws Exception {
         System.setProperty("hadoop.home.dir", "D:\\hadoop-common-2.2.0-bin-master");
         //SparkConf sparkConf = new SparkConf().setMaster("spark://master:7077").setAppName("spark-streaming-test");//spark服务器配置
-        SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
-        sparkConf.set("spark.executor.memory", "512m");
-        JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(20));//创建context上下文
-        jsc.checkpoint(checkPointDir);//spark 持久化容错目录设置
+        //SparkConf sparkConf = new SparkConf().setMaster("local[2]").setAppName("spark-streaming-test");
+        //sparkConf.set("spark.executor.memory", "512m");
+        //JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, Durations.seconds(20));//创建context上下文
+        //jsc.checkpoint(checkPointDir);//spark 持久化容错目录设置
+        //driver服务重启时，恢复原有流程或数据
+        //JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate(checkPointDir, ()->jsc);
+
+        String hostName = "local[2]";
+        String appName = "spark-streaming-test";
+        Map<String, String> prop = new HashMap<>();
+        prop.put("spark.executor.memory", "512m");
+        JavaStreamingContext jsc = createSparkContext(hostName, appName, checkPointDir, Durations.seconds(20), prop);
+
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
 
-        //driver服务重启时，恢复原有流程或数据
-        JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate(checkPointDir, ()->jsc);
-
         JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(this::exchangePersonInfo);
-
 
         javaDStreamFlatMap.foreachRDD(rdd->{
             rdd.foreachPartition(eachPartition->{
@@ -140,8 +137,8 @@ public class SparkServiceImpl implements SparkService {
         });
 
         lines.print();
-        backupJsc.start();
-        backupJsc.awaitTermination();
+        jsc.start();
+        jsc.awaitTermination();
     }
 
     private Iterator<Row> exchangePersonInfo(String var1) {
