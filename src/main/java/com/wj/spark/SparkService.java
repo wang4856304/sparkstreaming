@@ -10,4 +10,5 @@ import java.io.Serializable;
 public interface SparkService extends Serializable {
     void runSpark() throws Exception;
     void runSparkKafka() throws Exception;
+    String getDataBySql(String sql);
 }

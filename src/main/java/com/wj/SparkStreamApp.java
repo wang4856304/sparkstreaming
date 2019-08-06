@@ -22,8 +22,10 @@ import org.apache.spark.streaming.api.java.*;
 import org.apache.spark.streaming.kafka010.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -36,6 +38,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import scala.Tuple2;
 
 import javax.sql.DataSource;
@@ -57,13 +60,14 @@ public class SparkStreamApp implements ApplicationRunner {
     private static Logger log = LoggerFactory.getLogger(SparkStreamApp.class);
 
     @Autowired
+    @Qualifier("countService")
     private SparkService sparkService;
 
     public static void main(String args[]) throws Exception {
-        new SpringApplicationBuilder().sources(SparkStreamApp.class).web(false).run(args);
+        //new SpringApplicationBuilder().sources(SparkStreamApp.class).web(false).run(args);
         //SparkService sparkService = new SparkServiceImpl();
         //sparkService.runSpark();
-        //SpringApplication.run(SparkStreamApp.class, args);
+        SpringApplication.run(SparkStreamApp.class, args);
         /*BaseDao baseDao = applicationContext.getBean("baseDao", BaseDao.class);
         List<Map<String, Object>> map = baseDao.select(new HashMap<>());
         System.out.println(map);*/
@@ -80,13 +84,19 @@ public class SparkStreamApp implements ApplicationRunner {
         hikariDataSource.setPassword("root");
         hikariDataSource.setDriverClassName("com.mysql.jdbc.Driver");
         hikariDataSource.setConnectionTimeout(60000);
-        //hikariDataSource.setIdleTimeout(60000);
+        hikariDataSource.setIdleTimeout(60000);
         hikariDataSource.setValidationTimeout(3000);
         //hikariDataSource.setMaxLifetime(60000);
         hikariDataSource.setLoginTimeout(5);
-        hikariDataSource.setMaximumPoolSize(600);
+        hikariDataSource.setMaximumPoolSize(1000);
         hikariDataSource.setMinimumIdle(10);
         return hikariDataSource;
+    }
+
+    @Bean
+    public org.springframework.amqp.core.Queue queue() {
+        org.springframework.amqp.core.Queue queue = new org.springframework.amqp.core.Queue("event");
+        return queue;
     }
 
     @Override

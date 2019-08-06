@@ -60,7 +60,6 @@ public class SparkServiceImpl extends AbstractSparkService {
         Map<String, String> prop = new HashMap<>();
         prop.put("spark.executor.memory", "512m");
         JavaStreamingContext jsc = createSparkContext(hostName, appName, checkPointDir, Durations.seconds(20), prop);
-
         JavaReceiverInputDStream<String> lines = jsc.socketTextStream("127.0.0.1", 9999);//网络读取数据
 
         JavaDStream<Row> javaDStreamFlatMap = lines.flatMap(this::exchangePersonInfo);
@@ -291,5 +290,12 @@ public class SparkServiceImpl extends AbstractSparkService {
         //wordCount.print();
         jssc.start();
         jssc.awaitTermination();
+    }
+
+    @Override
+    public String getDataBySql(String sql) {
+        SparkSession sparkSession = SparkSession.builder().getOrCreate();
+        Dataset<Row> result = sparkSession.sql(sql);
+        return result.toString();
     }
 }

@@ -8,4 +8,7 @@ package com.wj.kafka.producer;
 public interface KafkaProducerService {
 
     void sendMessage();
+    void sendMessage(String topic, Object key, Object msg);
+    void sendMessage(String topic, Object msg);
+    void sendMessage(String topic, int partition, Object key, Object msg);
 }

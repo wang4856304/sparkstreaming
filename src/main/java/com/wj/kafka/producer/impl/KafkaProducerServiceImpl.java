@@ -8,7 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
+import org.springframework.util.concurrent.ListenableFuture;
 
 /**
  * @Author wangJun
@@ -16,13 +18,13 @@ import org.springframework.stereotype.Service;
  * @Date ${date} ${time}
  **/
 
-//@Service
+@Service
 public class KafkaProducerServiceImpl implements KafkaProducerService {
 
     private static Logger log = LoggerFactory.getLogger(KafkaProducerServiceImpl.class);
 
     @Autowired
-    private KafkaTemplate kafkaTemplate;
+    private KafkaTemplate<String, String> kafkaTemplate;
 
 
     @Override
@@ -52,5 +54,34 @@ public class KafkaProducerServiceImpl implements KafkaProducerService {
 
             kafkaTemplate.send("test", "key", message);
         }*/
+    }
+
+    @Override
+    public void sendMessage(String topic, Object key, Object msg) {
+        ListenableFuture future = kafkaTemplate.send(topic, key.toString(), msg.toString());
+        try {
+            String str = future.get().toString();
+            System.out.println(str);
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void sendMessage(String topic, Object msg) {
+        ListenableFuture future = kafkaTemplate.send(topic, msg.toString());
+        try {
+            String str = future.get().toString();
+            System.out.println(str);
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void sendMessage(String topic, int partition, Object key, Object msg) {
+        kafkaTemplate.send(topic, partition, key.toString(), msg.toString());
     }
 }

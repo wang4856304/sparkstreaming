@@ -40,6 +40,14 @@ spring:
       password: admin
       publisher-confirms: true
       virtual-host: /
+   jpa:
+      database: mysql
+      generate-ddl: true
+      hibernate:
+         ddl-auto: update
+         naming:
+            physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy
+      show-sql: true
    spark:
       dataSource:
          driverName: com.mysql.jdbc.Driver
@@ -50,7 +58,7 @@ spring:
 kafka:
    config:
       producer:
-         servers: 10.50.20.172:9092
+         servers: 127.0.0.1:9092
          retries: 0
          batchSize: 4096
          linger: 1

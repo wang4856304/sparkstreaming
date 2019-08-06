@@ -38,12 +38,12 @@ public abstract class AbstractSparkService implements SparkService {
             }
         }
         JavaStreamingContext jsc  = new JavaStreamingContext(sparkConf, batchDuration);//创建context上下文
-        if (!StringUtils.isEmpty(checkPointDir)) {
+        /*if (!StringUtils.isEmpty(checkPointDir)) {
             jsc.checkpoint(checkPointDir);//spark 持久化容错目录设置
             //driver服务重启时，恢复原有流程或数据
             JavaStreamingContext backupJsc = JavaStreamingContext.getOrCreate(checkPointDir, ()->jsc);
             return backupJsc;
-        }
+        }*/
         return jsc;
     }
 }

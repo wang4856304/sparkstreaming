@@ -12,7 +12,8 @@ public enum QueueEnum {
     TEST("test", "测试"),
     PROD("prod", "生产"),
     BIND("bind", ""),
-    NAME_COUNT("name_count", "名字次数统计");
+    NAME_COUNT("name_count", "名字次数统计"),
+    EVENT("event", "事件次数统计");
 
     private String queueName;
     private String desc;

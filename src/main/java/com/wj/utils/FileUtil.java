@@ -20,4 +20,26 @@ public class FileUtil {
         }
         return sb.toString();
     }
+
+    public static void writeFile(String path, String content) {
+        File file =new File(path);
+        File fileParent = file.getParentFile();
+        try {
+            if(!fileParent.exists()){
+                fileParent.mkdirs();
+            }
+            file.createNewFile();
+            FileWriter fileWriter =new FileWriter(file, true);
+            content =content +System.getProperty("line.separator");
+            fileWriter.write(content);
+            fileWriter.flush();
+            fileWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String args[]) throws Exception {
+        writeFile("d:\\event\\data.txt", "123");
+    }
  }
