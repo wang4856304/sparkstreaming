@@ -11,7 +11,7 @@
     <properties>
         <start-class>com.wj.SparkStreamApp</start-class>
         <spring-boot-version>1.5.8.RELEASE</spring-boot-version>
-        <fastJson-version>1.2.44</fastJson-version>
+        <fastJson-version>1.2.83</fastJson-version>
         <lombok-version>1.16.8</lombok-version>
         <spring-boot-mybatis-version>1.3.1</spring-boot-mybatis-version>
         <druid-version>1.1.0</druid-version>
